@@ -157,13 +157,24 @@ class _MyAppState extends State<MyApp> {
         appBar: AppBar(
           title: Text("FCM Demo"),
           actions: [
-            // Button for notification history
-            IconButton(
-              icon: Icon(Icons.history),
-              onPressed: _navigateToHistory,
+            Builder(
+              builder: (context) {
+                return IconButton(
+                  icon: Icon(Icons.history),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            NotificationHistoryScreen(history: _notificationHistory),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
           ],
         ),
+
         body: Center(
           child: SingleChildScrollView(
             child: Column(
