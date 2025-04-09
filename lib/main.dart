@@ -3,7 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-// Handler for background messages
+// Handler for background messages.
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   print("Background message: ${message.messageId}");
@@ -13,13 +13,13 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
-  // Set the background messaging handler
+  // Set the background messaging handler.
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   runApp(MyApp());
 }
 
-// Store notification information
+// Model class to store notification information.
 class NotificationItem {
   final String? title;
   final String? body;
@@ -48,7 +48,7 @@ class _MyAppState extends State<MyApp> {
     _setupFCM();
   }
 
-  // Initialize flutter_local_notifications
+  // Initialize the flutter_local_notifications plugin.
   void _initLocalNotifications() {
     flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
@@ -64,18 +64,22 @@ class _MyAppState extends State<MyApp> {
         final String? payload = notificationResponse.payload;
         if (payload != null) {
           debugPrint('Notification payload: $payload');
-          // Handle notification tap here
+          // Handle notification tap here (e.g., navigate to a specific screen).
         }
       },
     );
   }
 
-  // Show local notification and add it to history list
-  Future<void> _showNotification(RemoteMessage message) async {
-    final String notificationTitle = message.notification?.title ?? 'No Title';
-    final String notificationBody = message.notification?.body ?? 'No Body';
+  /// Shows a local notification.
+  /// 
+  /// [isImportant] indicates which type of notification to display.
+  Future<void> _showNotification(RemoteMessage message, {bool isImportant = false}) async {
+    final String notificationTitle = message.notification?.title ??
+        (isImportant ? 'Important' : 'Regular');
+    final String notificationBody = message.notification?.body ??
+        'Notification Body';
 
-    // Add notification to history
+    // Save the notification info in history.
     setState(() {
       _notificationHistory.add(NotificationItem(
         title: notificationTitle,
@@ -84,30 +88,39 @@ class _MyAppState extends State<MyApp> {
       ));
     });
 
-    // Android-specific notification details.
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
-      'activity_14_channel', 
-      'Activity 14 Notifications', 
-      channelDescription: 'Channel for practicing Firebase',
-      importance: Importance.max,
-      priority: Priority.high,
-      ticker: 'ticker',
-    );
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
+    // Choose channel settings based on type.
+    AndroidNotificationDetails androidDetails;
+    if (isImportant) {
+      androidDetails = const AndroidNotificationDetails(
+        'important_channel', // Channel ID for important notifications.
+        'Important Notifications', // Channel name.
+        channelDescription: 'Channel for important alerts.',
+        importance: Importance.max,
+        priority: Priority.high,
+      );
+    } else {
+      androidDetails = const AndroidNotificationDetails(
+        'regular_channel', // Channel ID for regular notifications.
+        'Regular Notifications', // Channel name.
+        channelDescription: 'Channel for regular notifications.',
+        importance: Importance.defaultImportance,
+        priority: Priority.defaultPriority,
+      );
+    }
 
-    // Display the notification.
+    final NotificationDetails platformDetails =
+        NotificationDetails(android: androidDetails);
+
     await flutterLocalNotificationsPlugin.show(
       0,
       notificationTitle,
       notificationBody,
-      platformChannelSpecifics,
-      payload: 'action_payload', 
+      platformDetails,
+      payload: isImportant ? 'important_payload' : 'regular_payload',
     );
   }
 
-  // Set up Firebase Messaging to request permission, retrieve token, and listen for messages
+  // Set up Firebase Messaging to request permissions, retrieve the token, and listen for messages.
   Future<void> _setupFCM() async {
     FirebaseMessaging messaging = FirebaseMessaging.instance;
 
@@ -118,21 +131,18 @@ class _MyAppState extends State<MyApp> {
     );
     print('User granted permission: ${settings.authorizationStatus}');
 
-    // Retrieve the FCM token for this device
+    // Retrieve FCM token for this device.
     String? token = await messaging.getToken();
     setState(() {
       _fcmToken = token ?? 'No token received';
     });
     print("FCM Token: $_fcmToken");
 
-    // Listen for messages when the app is in foreground
+    // Listen for foreground messages.
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print("Message received while in the foreground:");
-      print("Data: ${message.data}");
-      if (message.notification != null) {
-        print("Notification: ${message.notification!.title} - ${message.notification!.body}");
-      }
-      _showNotification(message);
+      bool isImportant = message.data['importance'] == 'important';
+      print("Message received (isImportant=$isImportant): ${message.data}");
+      _showNotification(message, isImportant: isImportant);
     });
 
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
@@ -140,41 +150,36 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  // Navigate to the Notification History screen
+  // Navigate to the Notification History screen.
   void _navigateToHistory() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => NotificationHistoryScreen(history: _notificationHistory),
-      ),
-    );
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (context) => NotificationHistoryScreen(history: _notificationHistory),
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Firebase Cloud Messaging Demo',
+      title: 'FCM Notifications Demo',
       home: Scaffold(
         appBar: AppBar(
           title: Text("FCM Demo"),
           actions: [
+            // Wrap in Builder to get correct context for Navigator.
             Builder(
               builder: (context) {
                 return IconButton(
                   icon: Icon(Icons.history),
                   onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            NotificationHistoryScreen(history: _notificationHistory),
-                      ),
-                    );
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (context) => NotificationHistoryScreen(history: _notificationHistory),
+                    ));
                   },
                 );
               },
             ),
           ],
         ),
-
         body: Center(
           child: SingleChildScrollView(
             child: Column(
@@ -188,9 +193,36 @@ class _MyAppState extends State<MyApp> {
                   padding: const EdgeInsets.all(12.0),
                   child: SelectableText(_fcmToken),
                 ),
-                Text(
-                  "Copy this token and use it to test notifications.",
-                  textAlign: TextAlign.center,
+                Text("Copy this token and use it to test notifications."),
+                const SizedBox(height: 20),
+                // Button to simulate a regular notification.
+                ElevatedButton(
+                  onPressed: () {
+                    RemoteMessage dummyMessage = RemoteMessage(
+                      notification: RemoteNotification(
+                        title: "Test Regular",
+                        body: "This is a regular notification",
+                      ),
+                      data: {},
+                    );
+                    _showNotification(dummyMessage, isImportant: false);
+                  },
+                  child: Text("Send Regular Notification"),
+                ),
+                const SizedBox(height: 20),
+                // Button to simulate an important notification.
+                ElevatedButton(
+                  onPressed: () {
+                    RemoteMessage dummyMessage = RemoteMessage(
+                      notification: RemoteNotification(
+                        title: "Test Important",
+                        body: "This is an important notification",
+                      ),
+                      data: {"importance": "important"},
+                    );
+                    _showNotification(dummyMessage, isImportant: true);
+                  },
+                  child: Text("Send Important Notification"),
                 ),
               ],
             ),
@@ -201,7 +233,7 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-// Screen to display notification history.
+// A screen to display the history of received notifications.
 class NotificationHistoryScreen extends StatelessWidget {
   final List<NotificationItem> history;
   const NotificationHistoryScreen({Key? key, required this.history}) : super(key: key);
@@ -209,9 +241,7 @@ class NotificationHistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Notification History'),
-      ),
+      appBar: AppBar(title: Text('Notification History')),
       body: ListView.builder(
         itemCount: history.length,
         itemBuilder: (context, index) {
