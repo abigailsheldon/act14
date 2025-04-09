@@ -1,97 +1,94 @@
+import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/material.dart';
-import 'firebase_options.dart';
 
-Future<void> _messageHandler(RemoteMessage message) async {
-  print('background message ${message.notification!.body}');
+// Handler for background messages
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  print("Background message: ${message.messageId}");
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  FirebaseMessaging.onBackgroundMessage(_messageHandler);
-  runApp(MessagingTutorial());
+  await Firebase.initializeApp();
+
+  // Set the background messaging handler early on
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  runApp(MyApp());
 }
 
-class MessagingTutorial extends StatelessWidget {
+class MyApp extends StatefulWidget {
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Firebase Messaging',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: MyHomePage(title: 'Firebase Messaging'),
-    );
-  }
+  _MyAppState createState() => _MyAppState();
 }
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key? key, this.title}) : super(key: key);
-  final String? title;
-
-  @override
-  _MyHomePageState createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  late FirebaseMessaging messaging;
-  String? notificationText;
+class _MyAppState extends State<MyApp> {
+  String _fcmToken = '';
 
   @override
   void initState() {
     super.initState();
-    messaging = FirebaseMessaging.instance;
+    _setupFCM();
+  }
 
-    messaging.subscribeToTopic("messaging");
+  Future<void> _setupFCM() async {
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
 
-    messaging.getToken().then((value) {
-      print("FCM Token: $value");
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    print('User granted permission: ${settings.authorizationStatus}');
+
+    // Get and display the token
+    String? token = await messaging.getToken();
+    setState(() {
+      _fcmToken = token ?? 'No token received';
     });
+    print("FCM Token: $_fcmToken");
 
-    FirebaseMessaging.onMessage.listen((RemoteMessage event) {
-      print("Message received");
-      print(event.notification?.body);
-      print(event.data);
-
-      String type = event.data['notificationType'] ?? 'regular';
-
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            backgroundColor: type == 'important' ? Colors.red[200] : Colors.blue[100],
-            title: Text(type == 'important' ? "Important Notification" : "Notification"),
-            content: Text(event.notification?.body ?? ''),
-            actions: [
-              TextButton(
-                child: Text("Ok"),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-              )
-            ],
-          );
-        },
-      );
-    });
-
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      print('Message clicked!');
+    // Listen to foreground messages
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      print("Message received while in the foreground:");
+      print("Data: ${message.data}");
+      if (message.notification != null) {
+        print("Notification: ${message.notification!.title} - ${message.notification!.body}");
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title!),
+    return MaterialApp(
+      title: 'Firebase Cloud Messaging Demo',
+      home: Scaffold(
+        appBar: AppBar(
+          title: Text("FCM Demo"),
+        ),
+        body: Center(
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  "FCM Token:",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: SelectableText(_fcmToken),
+                ),
+                Text(
+                  "Copy this token and use it to test from Firebase",
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
-      body: Center(child: Text("Messaging Tutorial")),
     );
   }
 }
